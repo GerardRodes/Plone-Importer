@@ -159,7 +159,6 @@ class Importer:
 
   def build_objects(self):
 
-    references = []
     portal_workflow = getToolByName(self.portal, 'portal_workflow')
 
     def process_string(new_item, item_info, data):
@@ -182,12 +181,13 @@ class Importer:
         return dt.replace(tzinfo=pytz.utc)
 
 
+    references = []
+
     def process_reference(new_item, item_info, data):
       """
         References are delayed to be executed at the end to assure that all objects are created
       """
-
-      references.append({'_new_item_uid': item_info['_new_item_uid']}.update(data))
+      references.append({'_new_item': new_item, 'item_info': item_info, 'data': data})
       return None
 
 
@@ -196,7 +196,6 @@ class Importer:
 
 
     def process_file(new_item, item_info, data):
-      # /tmp/import./files/CARTELL VETLLA1.pdf
       file_path = '/'.join(self.xml_folder.split('/') + [file for file in data['value'].split('/') if file and file != '.'])
       if os.path.isfile(file_path):
         file_data = open(file_path, 'r').read()
@@ -212,13 +211,22 @@ class Importer:
 
 
     def process_text(new_item, item_info, data):
-      return RichTextValue(data['value'], data['content_type'], data['content_type']).output
+      rtv = RichTextValue(data['value'], data['content_type'], data['content_type'])
+      return rtv.output if data['content_type'] == 'text/plain' else rtv
 
 
     def process_boolean(new_item, item_info, data):
       value = str(data['value']).lower()
       return value in ('true', '1', 'yes', 'si')
 
+
+    def process_UID(new_item, item_info, data):
+      item_data = self.items.get(data['value'], None)
+
+      if not item_data:
+        return None
+      else:
+        return item_data['_new_item'].UID()
 
     processors = {
       'string':    process_string,
@@ -228,6 +236,7 @@ class Importer:
       'file':      process_file,
       'text':      process_text,
       'boolean':   process_boolean,
+      'UID':       process_UID,
     }
 
 
@@ -274,7 +283,31 @@ class Importer:
         portal_workflow.doActionFor(new_item, 'publish')
 
       new_item.reindexObject()
+      item_info.update({'_new_item': new_item}) #Saved item object to reference later
       current += 1
+
+    self.happens('Objects creation finished.')
+    if references:
+      self.happens('Linking references.')
+      total = len(references)
+      current = 1
+      for reference in references:
+        self.happens('{current}/{total}'.format(current=current, total=total))
+
+        new_item   = reference['_new_item']
+        item_info  = reference['item_info']
+        field_info = reference['data']
+
+        raw_values = field_info['value'] if isinstance(field_info['value'], (tuple, list)) else (field_info['value'],)
+        values = tuple()
+        for field_child in raw_values:
+          # Getting new UID from old UID
+          values += (processors.get(field_child['type'], processors.get('UID'))(new_item, item_info, field_child),)
+
+        fieldname = field_info['fieldname'](values) if callable(field_info['fieldname']) else field_info['fieldname']
+        setattr(new_item, fieldname, value)
+        new_item.reindexObject()
+        current += 1
 
 
   def happens(self, msg, log_type = 'event'):
