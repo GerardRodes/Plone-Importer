@@ -67,4 +67,4 @@ Every field at the XML can have an attribute `type` which specifies which is the
 + text 
 + boolean   
 
-__all fields processors at defined inside the `build_objects` function__
+__all fields processors are defined inside the `build_objects` function__
