@@ -66,5 +66,6 @@ Every field at the XML can have an attribute `type` which specifies which is the
 + file 
 + text 
 + boolean   
++ UID: given the old UID of an objected of the same XML file (or it's loop_id) returns the UID of the new item created
 
 __all fields processors are defined inside the `build_objects` function__
