@@ -1,18 +1,28 @@
 # -*- coding: utf-8 -*-
 
-from plone.app.textfield.value import RichTextValue
-from Products.CMFPlone.utils import safe_unicode
-from Products.CMFCore.utils import getToolByName
-from plone.i18n.normalizer import idnormalizer
+try:
+  # dexterity
+  from plone.app.textfield.value import RichTextValue
+except Exception as e:
+  print str(e)
+  pass
+  
 from plone.namedfile.file import NamedBlobImage
 from plone.namedfile.file import NamedBlobFile
+from Products.CMFPlone.utils import safe_unicode
+from Products.CMFCore.utils import getToolByName
+from Products.CMFCore.Expression import Expression, getExprContext
+from plone.i18n.normalizer import idnormalizer
 import xml.etree.ElementTree as ET
 from DateTime import DateTime
 from datetime import date, datetime
 from dateutil import parser
 from plone import api
-import urllib, os, re, time, transaction, json, urllib2, pytz
+import urllib, os, re, time, transaction, json, urllib2, pytz, sys, traceback
 
+
+def dump(json_data):
+  print json.dumps(json_data, indent=2)
 
 class Importer:
 
@@ -417,7 +427,7 @@ class Importer:
             if new_item_id in item.keys():
               self.happens('\tItem exists, getting...')
               new_item = item.get(new_item_id)
-              self.happens('\tGot -> id: {id}, uid:{uid}'.format(id=new_item.getId(), uid=new_item.UID()))
+              self.happens('\tGot -> id: {id}, uid:{uid}, path:{path}'.format(id=new_item.getId(), uid=new_item.UID()), path='/'.join(new_item.getPhysicalPath()))
             else:
               self.happens('\tItem ({type}) doesn\'t exists, creating...'.format(type=json_new_item.get('_type')))
               try:
