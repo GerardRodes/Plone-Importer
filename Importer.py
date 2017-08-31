@@ -126,6 +126,7 @@ class Importer:
 
         loop_id = '_' + str(n)
         item = {'_loop_id': loop_id}
+
         for key, value in xml_item.attrib.iteritems():
           item['_' + key] = value
 
@@ -156,7 +157,8 @@ class Importer:
         self.items[item['_uid'] if '_uid' in item else loop_id] = item
         return item
 
-      self.portal_tree = parse_xml_item(root.find('plone-site'))
+
+      self.portal_tree = parse_xml_item(root[0])
       portal_tree_file = open(self.output_folder + '/portal_tree.json', 'w+')
       portal_tree_file.write(json.dumps(self.portal_tree, indent=2))
       portal_tree_file.close()
@@ -315,7 +317,11 @@ class Importer:
 
     def process_text(new_item, item_info, data):
       try:
-        rtv = RichTextValue(data['value'], data['content_type'], data['content_type'])
+        # self.import_as = dexterity|archetype
+        if self.import_as == 'dexterity':
+          rtv = RichTextValue(data['value'], data['content_type'], data['content_type'])
+        else:
+          rtv = data['value']
         return rtv.output if data['content_type'] == 'text/plain' else rtv
       except:
         return {'value': unicode(data['value']).encode('utf-8').strip(), 'mimetype': data['content_type']}
@@ -427,7 +433,7 @@ class Importer:
             if new_item_id in item.keys():
               self.happens('\tItem exists, getting...')
               new_item = item.get(new_item_id)
-              self.happens('\tGot -> id: {id}, uid:{uid}, path:{path}'.format(id=new_item.getId(), uid=new_item.UID()), path='/'.join(new_item.getPhysicalPath()))
+              self.happens('\tGot -> id: {id}, uid:{uid}, path:{path}'.format(id=new_item.getId(), uid=new_item.UID(), path='/'.join(new_item.getPhysicalPath())))
             else:
               self.happens('\tItem ({type}) doesn\'t exists, creating...'.format(type=json_new_item.get('_type')))
               try:
@@ -449,7 +455,7 @@ class Importer:
             #   pass
 
         for key, data in json_item.iteritems():
-          if not key.startswith('_'):
+          if not key.startswith('_') and hasattr(item, 'getField'):
             # Processing fields
             processor_name = data.get('type', 'string')
             processor = processors.get(processor_name)
@@ -491,6 +497,10 @@ class Importer:
 
         if self.publish and item_brain and item_brain.get('review_state', None) and portal_workflow.getInfoFor(item, 'review_state') != 'published':
           portal_workflow.doActionFor(item, 'publish')
+        elif '_review_state' in json_item:
+        	for action in portal_workflow.listActions(object=item):
+        		if 'id' in action and 'transition' in action and action['transition'].new_state_id == json_item['_review_state']:
+        			portal_workflow.doActionFor(item, action['id'])
         else:
           item.reindexObject()
 
